@@ -1,0 +1,92 @@
+
+# SASC Workshop Package/Software Installation 
+
+This script is intended for use to download all packages and software 
+in R required for the second SASC workshop. You will need to run this 
+ccript in R
+
+## Required Software 
+
+Before starting installation, you will need the following software version:
+- R version 4.1.0 or higher
+- Bioconductor version 3.14 or higher
+
+
+## Installing Monocle3 
+
+Note: This software is dependent on a lot of various packages
+and may take a long installation time. 
+
+
+### Install Bioconductor
+
+Note: the Bioconductor version may be dependent on your R version. 
+Change the Bioconductor version if needed. 
+
+```{r}
+if (!requireNamespace("BiocManager", quietly = TRUE))
+install.packages("BiocManager")
+BiocManager::install(version = "3.18")
+```
+
+**Install Bioconductor dependencies**
+
+```{r}
+BiocManager::install(c('BiocGenerics', 'DelayedArray', 'DelayedMatrixStats',
+                       'limma', 'lme4', 'S4Vectors', 'SingleCellExperiment',
+                       'SummarizedExperiment', 'batchelor', 'HDF5Array',
+                       'terra', 'ggrastr'))
+```
+
+**Install monocle3 through cole-trapnell-lab GitHub**
+
+```{r}
+install.packages("devtools")
+devtools::install_github('cole-trapnell-lab/monocle3')
+```
+
+
+**Test Insallation**
+To ensure that Monocle3 was installed correction, run:
+```{r}
+library(monocle3)
+```
+
+
+**Monocle3 Installion troubleshooting**
+If you run into errors installing Monocle3, please refer to common errors that most
+users encounter on the Monocle website: 
+[Monocle3 Website](https://cole-trapnell-lab.github.io/monocle3/docs/installation/)
+
+
+## Installing kBET
+
+Installion should take less than 5 min. 
+
+There are two methods to install kBET: 
+
+**Via Github and devtools**
+
+```{r}
+library(devtools)
+install_github('theislab/kBET')
+```
+
+**Manually**
+
+```{r}
+install.packages('kBET.zip', repos = NULL, type = 'source')
+```
+
+**Test that kBET installed correction**
+
+```{r}
+library(kBET)
+```
+
+
+## Installing Harmony 
+```{r}
+install.packages("harmony")
+library(harmony)
+```
