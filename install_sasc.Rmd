@@ -90,3 +90,12 @@ library(kBET)
 install.packages("harmony")
 library(harmony)
 ```
+
+## Installing Misc CRAN packages
+```{r}
+install.packages("tidyverse")
+library(tidyverse)
+
+install.packages("randomcolorR")
+library(randomcolorR)
+```
