@@ -6,19 +6,4 @@
 ### Before the meeting
 1. We will be using Rstudio. Please ensure you have R and Rstudio Desktop. These can be downloaded from https://posit.co/download/rstudio-desktop/
 2. Clone this github repo.
-3. Install all necessary R packages. We will not have time to help install packages. Please come with them pre-installed or be prepared to only watch.
-
-The following R pacakges will be used:
-library(monocle3)
-library(ggplot2)
-library(tidyverse)
-library(viridis)
-library(data.table)
-library(garnett)
-library(randomcoloR)
-library(kBET)
-library(cowplot)
-library(harmony)
-library(viridis)
-library(uwot)
-library(batchelor)
+3. Install all necessary R packages. We will not have time to help install packages. Please come with them pre-installed or be prepared to only watch. The following pacakges will be used: monocle3, ggplot2, tidyverse, viridis, randomcoloR, kBET, cowplot, harmony, uwot, batchelor
