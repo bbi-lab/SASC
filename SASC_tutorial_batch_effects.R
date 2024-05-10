@@ -27,8 +27,9 @@ library(batchelor)
 ########### READ DATA ##########################################################
 ################################################################################
 #Read in the cell data set containing a random sub-sampling of 35K barcodes from
-#a recent experiment
 sasc <- readRDS("BBI_heart_hs_mix_36601humangenes_35000barcodes.RDS")
+
+#a recent experiment
 class(sasc) #cell_data_set
 sasc #dim: 36601 35000 
 
@@ -149,7 +150,7 @@ sasc$qcflag <- ifelse(sasc$n.umi >= 300 & sasc$num_genes_expressed >= 200 & sasc
 table(sasc$qcflag)
 
 sasc <- sasc[,sasc$qcflag == "PASS"] #filter out failing barcodes
-sasc #dim: 36601 24792 
+sasc #dim: 36601 24820
 
 #Let's remove things mapping to the wrong genome, those nonassignable to a donor, or deemed a doublet
 data.frame(pData(sasc)) %>% 
@@ -163,15 +164,15 @@ data.frame(pData(sasc)) %>%
   data.frame()
 
 sasc <- sasc[,sasc$organism == "human" & sasc$donor %in% c(0, 1)]
-sasc #dim: 36601 24206 
+sasc #dim: 36601 24216 
 
 #our semi-cleaned data!
 table(sasc$batch)
 table(sasc$batch, sasc$donor)
 
 #if you fell behind, you can read in the cleaned dataset
-#saveRDS(sasc, "BBI_heart_hs_mix_36601humangenes_24206barcodes_12meta.RDS")
-#sasc <- readRDS("BBI_heart_hs_mix_36601humangenes_24206barcodes_12meta.RDS")
+#saveRDS(sasc, "BBI_heart_hs_mix_36601humangenes_24216barcodes_12meta.RDS")
+#sasc <- readRDS("BBI_heart_hs_mix_36601humangenes_24216barcodes_12meta.RDS")
 
 ################################################################################
 ########### PREPROCESS  ########################################################
@@ -182,7 +183,7 @@ hist(fData(sasc)$num_cells_expressed)
 table(fData(sasc)$num_cells_expressed > 25)
 
 sasc <- sasc[fData(sasc)$num_cells_expressed > 25, ] #filter out genes not expressed in at least 25 cells
-sasc #dim: 21279 24206 
+sasc #dim: 21279 24216 
 
 #standard mini workflow in monocle3
 ?estimate_size_factors
@@ -210,6 +211,7 @@ plot_cells(sasc, color_cells_by= "donor")
 
 #for large datasets, I often find the defaults to be too fine-resolution
 #as a starting point, I use the following and round to a nice even number
+#it is advisable to try several k values (and/or resolutions)
 ceiling(sqrt(dim(sasc)[2])*0.25) # 39 -> 40
 
 #run the function
@@ -240,13 +242,13 @@ keep <- top_marker_genes %>%
 
 plot_genes_by_group(sasc,
                     c(keep),
-                    group_cells_by="k50_leiden_clusters", #"partition", "cluster"
+                    group_cells_by="k40_leiden_clusters", #"partition", "cluster"
                     ordering_type="maximal_on_diag",
                     max.size=3)
 
 #saving/catch-up poit
-#saveRDS(sasc, "BBI_heart_hs_mix_36601humangenes_24206barcodes_14meta.RDS")
-#sasc <- readRDS("BBI_heart_hs_mix_36601humangenes_24206barcodes_14meta.RDS")
+#saveRDS(sasc, "BBI_heart_hs_mix_36601humangenes_24216barcodes_14meta.RDS")
+#sasc <- readRDS("BBI_heart_hs_mix_36601humangenes_24216barcodes_14meta.RDS")
 
 ################################################################################
 ########### DATA VIZ  ##########################################################
@@ -261,7 +263,7 @@ set.seed(1000)
 colpal <- randomcoloR::distinctColorPalette(k=12)
 
 #Plot! Try changing some variables! (live coding)
-ggplot(data.frame(pData(sasc)), aes(x=UMAP1, y=UMAP2, color=k40_leiden_clusters)) + # try coloring by cell_type
+ggplot(data.frame(pData(sasc)), aes(x=UMAP1, y=UMAP2, color=cell_type)) + # try coloring by cell_type
   facet_wrap(~batch+donor) + # try faceting on batch, donor, and batch+donor
   geom_point(size=0.5, alpha=0.5) +
   theme_bw() + #try changing themes, e.g. theme_light()
@@ -271,7 +273,7 @@ ggplot(data.frame(pData(sasc)), aes(x=UMAP1, y=UMAP2, color=k40_leiden_clusters)
         panel.grid=element_blank()) +
   guides(color = guide_legend(override.aes = list(size=8, alpha=1)))
 
-#leiden clusters 3, 7, and 1 appear to be related cell types (ventricular cardiomyocytes)
+#leiden clusters 3, 4, 2, and 9 appear to be related cell types (ventricular cardiomyocytes)
 
 #CLEARLY THERE IS BOTH TECHNICAL (BATCH) AND BIOLOGICAL (DONOR) VARIATION 
 
@@ -323,6 +325,7 @@ identical(reducedDim(sasc, "PCA"), reducedDim(bc_cds, "PCA"))
 identical(reducedDim(sasc, "UMAP"), reducedDim(bc_cds, "UMAP"))
 
 # We can run reduce_dimensions to generate a UMAP from the 'aligned' PCA
+set.seed(1000)
 bc_cds <- reduce_dimension(bc_cds, reduction_method = "UMAP", preprocess_method = "Aligned")
 identical(reducedDim(sasc, "UMAP"), reducedDim(bc_cds, "UMAP"))
 plot_cells(bc_cds, color_cells_by = "batch")
@@ -424,8 +427,8 @@ data.frame(colData(sasc)) %>%
 # original clusters 1, 3,and 7 are related (ventricular cardiomyocytes).
 
 #saving/catch-up poit
-#saveRDS(sasc, "BBI_heart_hs_mix_36601humangenes_24206barcodes_22meta.RDS")
-#sasc <- readRDS("BBI_heart_hs_mix_36601humangenes_24206barcodes_22meta.RDS")
+#saveRDS(sasc, "BBI_heart_hs_mix_36601humangenes_24216barcodes_22meta.RDS")
+#sasc <- readRDS("BBI_heart_hs_mix_36601humangenes_24216barcodes_22meta.RDS")
 
 ################################################################################
 ########## Differential Gene Expression ########################################
@@ -439,8 +442,8 @@ head(colData(sasc))
 
 #subset ventricular cardiomyocyte data only 
 table(sasc$cell_type)
-cds_vent <- sasc[,sasc$cell_type == "Ventricular Cardiomyocyte" & sasc$k40_leiden_clusters %in% c("1", "3", "7")]
-cds_vent #dim: 21279 10298 
+cds_vent <- sasc[,sasc$cell_type == "Ventricular Cardiomyocyte" & sasc$k40_leiden_clusters %in% c("3", "4", "9", "2")]
+cds_vent #dim: 21279 10337 
 
 #sanity Check 
 table(cds_vent$cell_type)
