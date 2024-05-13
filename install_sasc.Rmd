@@ -96,6 +96,6 @@ library(harmony)
 install.packages("tidyverse")
 library(tidyverse)
 
-install.packages("randomcolorR")
-library(randomcolorR)
+install.packages("randomcoloR")
+library(randomcoloR)
 ```
