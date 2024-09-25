@@ -19,8 +19,7 @@ remotes::install_github("satijalab/seurat-wrappers", quiet = TRUE)
 
 # Check that you can load Seurat
 library(Seurat)
-library(dplyr)
-library(tidyverse)
+library(SeuratData)
 library(Azimuth)
 
 ################################################################################
@@ -40,5 +39,21 @@ library(biomaRt)
 install.packages("nnls")
 library(nnls)
 
+install.packages("tidyverse")
+library(tidyverse)
 
+install.packages("dplyr")
+library(dplyr)
 
+install.packages("pheatmap")
+library(pheatmap)
+
+################################################################################
+######################       Download data for tutorial   ######################
+################################################################################
+
+# We recommend create a directory for the following data so that it's easily accessible during the workshop
+system("wget https://cf.10xgenomics.com/samples/cell/pbmc3k/pbmc3k_filtered_gene_bc_matrices.tar.gz", TRUE)  # This will need to be untarred 
+system("wget https://krishna.gs.washington.edu/content/members/hGastruloid_website/public/Profiling/RA_hGas_120h.RDS", TRUE)
+system("wget https://krishna.gs.washington.edu/content/members/weiy/2024_sasc_workshop/moca_e9.5_subset.rds", TRUE)
+system("wget https://krishna.gs.washington.edu/content/members/weiy/2024_sasc_workshop/NNLS_helper.R", TRUE)

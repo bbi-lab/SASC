@@ -1,0 +1,171 @@
+---
+title: "2024_SASC_workshop"
+output: html_document
+author: wei yang
+date: "2024-09-23"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r load data}
+suppressPackageStartupMessages({
+options(stringsAsFactors = FALSE)
+library(Seurat)
+library(dplyr)
+library(tidyverse)
+            })
+```
+
+```{r dimensional reduction of pbmc}
+#Performing normalization, dimensionality reduction and clustering on the pbmc dataset (Zheng et al., 2017)
+pbmc.data <- Read10X(data.dir = "./query_pbmc_matrix/hg19/")
+pbmc <- CreateSeuratObject(counts = pbmc.data, project = "pbmc3k", min.cells = 3, min.features = 200)
+pbmc[["percent.mt"]] <- PercentageFeatureSet(pbmc, pattern = "^MT-")
+pbmc <- subset(pbmc, subset = nFeature_RNA > 200 & nFeature_RNA < 2500 & percent.mt < 5)
+pbmc <- NormalizeData(pbmc, normalization.method = "LogNormalize", scale.factor = 10000)
+pbmc <- FindVariableFeatures(pbmc, selection.method = "vst", nfeatures = 2000)
+pbmc <- ScaleData(pbmc,vars.to.regress = 'percent.mt')
+pbmc <- RunPCA(pbmc, features = VariableFeatures(object = pbmc))
+pbmc <- FindNeighbors(pbmc, dims = 1:10)
+pbmc <- FindClusters(pbmc, resolution = 0.5)
+pbmc <- RunUMAP(pbmc, dims = 1:10)
+```
+
+```{r}
+#Checking the unsupervised clusters of pbmc
+plot(DimPlot(pbmc, reduction = "umap",group.by='seurat_clusters',label=T))
+```
+
+```{r, find markers}
+#Identifying marker genes for each pbmc cluster
+pbmc.markers <- FindAllMarkers(pbmc, only.pos = TRUE)
+pbmc.markers %>%
+    group_by(cluster) %>%
+    dplyr::filter(avg_log2FC > 1) %>%
+    slice_head(n = 10) %>%
+    ungroup() -> top10
+plot(DoHeatmap(pbmc, features = top10$gene) + NoLegend())
+```
+
+```{r plot markers}
+#Plotting canonical marker genes on pbmc umaps to visualize enrichment of marker gene expression
+# Cluster ID	Markers	Cell Type
+# 0	IL7R, CCR7	Naive CD4+ T
+# 1	CD14, LYZ	CD14+ Mono
+# 2	IL7R, S100A4	Memory CD4+
+# 3	MS4A1	B
+# 4	CD8A	CD8+ T
+# 5	FCGR3A, MS4A7	FCGR3A+ Mono
+# 6	GNLY, NKG7	NK
+# 7	FCER1A, CST3	DC
+# 8	PPBP	Platelet
+plot(FeaturePlot(pbmc, features = c("IL7R","CCR7", "CD14","LYZ","IL7R","S100A4",
+                               "MS4A1", "CD8A", "FCGR3A", "MS4A7","CD8A",
+                               "GNLY", "NKG7", "FCER1A", "CST3",
+                                "PPBP", "CD3E"),order=TRUE))
+```
+
+```{r gene modules}
+#Plotting canonical marker genes as gene modules to look at their enrichment together.
+options(repr.plot.width=8, repr.plot.height=8)
+cd_features <- list(c(
+'FCER1A', 'CST3','ITGAX','CD86','CD83','LAMP3','CX3CR1'
+))
+pbmc<- AddModuleScore(
+  object = pbmc,
+  features = cd_features,
+  ctrl = 5,
+  name = 'DC_Features'
+)
+plot(FeaturePlot(pbmc,features='DC_Features1',order=TRUE))
+```
+
+```{r GO term}
+#Perform biological theme comparison of marker genes in each pbmc cluster
+library(clusterProfiler)
+#Load the organism whose GO term we are looking at
+organism = "org.Hs.eg.db" #human 
+library(organism, character.only = TRUE)
+df = pbmc.markers%>%filter(p_val_adj<0.05)
+#Convert gene names to ENTREZID(GO term was associated to ENTREZID)
+#preprare marker gene sets
+gene.df <- select(org.Hs.eg.db,
+                  keys = df$gene,  
+                  columns = c("ENTREZID", "SYMBOL"),  
+                  keytype = "SYMBOL")
+#drop duplicate by selecting the first entrezid for each gene name
+gene.df <- gene.df[!duplicated(gene.df$SYMBOL), ]
+df_entrez = left_join(df,gene.df,by=c('gene'='SYMBOL'))%>%drop_na()
+#prepare background gene sets (all genes expressed in pbmc)
+all.gene.df <- select(org.Hs.eg.db,
+                  keys = row.names(pbmc),
+                  columns = c("ENTREZID", "SYMBOL"),
+                  keytype = "SYMBOL")
+all.gene.df <- all.gene.df[!duplicated(all.gene.df$SYMBOL), ]%>%drop_na()
+
+#KEGG pathway
+compKEGG = compareCluster(geneClusters=ENTREZID~cluster, data = df_entrez, fun = "enrichKEGG",
+                          organism='hsa',universe = all.gene.df$ENTREZID)
+dotplot(compKEGG, title = "KEGG analysis")
+setReadable(compKEGG, OrgDb = org.Hs.eg.db, keyType="ENTREZID")
+
+#Gene ontology (BP,MF,CC)
+compGO =compareCluster(geneClusters=ENTREZID~cluster, data = df_entrez, fun = "enrichGO",OrgDb=organism,
+               ont='BP',universe = all.gene.df$ENTREZID)
+dotplot(compGO, title = "GO BP analysis")
+```
+
+```{r Azimuth integration}
+#Integrate pbmc with pbmc reference in Azimuth database and label transfer through Seurat
+suppressPackageStartupMessages({
+options(stringsAsFactors = FALSE)
+library(Azimuth)
+library(SeuratData)
+    })
+pbmc <- RunAzimuth(pbmc, reference = "pbmcref")
+p1 <- DimPlot(pbmc, group.by = "predicted.celltype.l2", label = TRUE, label.size = 3) + NoLegend()
+p2 <- DimPlot(pbmc)
+plot(p1 + p2)
+```
+
+```{r NNLS}
+#Using NNLS to map clusters in human RA gastruloids (Hamazaki, Yang et al., 2024) to cell types in mouse embryos (E9.5) (Qiu et al., 2022)
+library(biomaRt)
+library(pheatmap)
+source('./NNLS_helper.R')
+#Prepare for matching human and mouse orthologs
+ensembl_human <- useMart("ensembl", dataset = "hsapiens_gene_ensembl")
+attributes <- c("ensembl_gene_id", "external_gene_name", 
+                "mmusculus_homolog_ensembl_gene", "mmusculus_homolog_associated_gene_name")
+human_mouse_homologs <- getBM(attributes = attributes, 
+                              mart = ensembl_human, 
+                              filters = "with_mmusculus_homolog", 
+                              values = TRUE)
+colnames(human_mouse_homologs)=c('Human_ID','Human_name','Mouse_ID','Mouse_name')
+human_mouse_homologs$link = paste0(human_mouse_homologs$Human_ID,'-',human_mouse_homologs$Mouse_ID)
+
+#Pseudo-bulking query and reference datasets
+RA_hG_120h = readRDS('./RA_hGas_120h.RDS')
+moca_subset = readRDS('./moca_e9.5_subset.rds')
+res_RA_hG_120h<- pseudobulk(RA_hG_120h,'RA_120h','Human_name')
+res_moca_e95 <- pseudobulk(moca_subset,'MOCA_9.5','Mouse_ID')
+share.genes=Reduce(intersect, list(rownames(res_RA_hG_120h),rownames(res_moca_e95)))
+res_RA_hG_120h_filtered=res_RA_hG_120h[share.genes,]
+res_moca_e95_filtered=res_moca_e95[share.genes,]
+
+#Run NNLS
+nnls_result <- correlation_analysis_bidirection(res_RA_hG_120h_filtered,res_moca_e95_filtered,fold.change = 2.5, top_gene_num = 200, spec_gene_num = 200) #compute beta
+nnls_output_all <- correlation_analysis_cell_type_selection(nnls_result) #generate summarise stats
+
+#Plot NNLS results
+dat <- nnls_output_all[[1]]
+df_tmp = data.frame(Anno=rownames(dat), day=str_split_fixed(rownames(dat),':',2)[,1])
+df_tmp = df_tmp%>%arrange(day)
+options(repr.plot.width=30, repr.plot.height=10)
+pheatmap(t(dat), color = colorRampPalette(c("navy", "white", "firebrick3"))(50),fontsize = 18,
+        cluster_rows=F, cluster_cols=F)
+```
+
