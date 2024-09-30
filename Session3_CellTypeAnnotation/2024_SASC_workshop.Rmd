@@ -16,12 +16,17 @@ options(stringsAsFactors = FALSE)
 library(Seurat)
 library(dplyr)
 library(tidyverse)
+library(here)
             })
+
+here::i_am("2024_SASC_workshop.Rmd")
 ```
+
+
 
 ```{r dimensional reduction of pbmc}
 #Performing normalization, dimensionality reduction and clustering on the pbmc dataset (Zheng et al., 2017)
-pbmc.data <- Read10X(data.dir = "./query_pbmc_matrix/hg19/")
+pbmc.data <- Read10X(data.dir=(here("filtered_gene_bc_matrices/hg19/")))
 pbmc <- CreateSeuratObject(counts = pbmc.data, project = "pbmc3k", min.cells = 3, min.features = 200)
 pbmc[["percent.mt"]] <- PercentageFeatureSet(pbmc, pattern = "^MT-")
 pbmc <- subset(pbmc, subset = nFeature_RNA > 200 & nFeature_RNA < 2500 & percent.mt < 5)
@@ -135,7 +140,7 @@ plot(p1 + p2)
 #Using NNLS to map clusters in human RA gastruloids (Hamazaki, Yang et al., 2024) to cell types in mouse embryos (E9.5) (Qiu et al., 2022)
 library(biomaRt)
 library(pheatmap)
-source('./NNLS_helper.R')
+source(here("NNLS_helper.R"))
 #Prepare for matching human and mouse orthologs
 ensembl_human <- useMart("ensembl", dataset = "hsapiens_gene_ensembl")
 attributes <- c("ensembl_gene_id", "external_gene_name", 
@@ -148,8 +153,8 @@ colnames(human_mouse_homologs)=c('Human_ID','Human_name','Mouse_ID','Mouse_name'
 human_mouse_homologs$link = paste0(human_mouse_homologs$Human_ID,'-',human_mouse_homologs$Mouse_ID)
 
 #Pseudo-bulking query and reference datasets
-RA_hG_120h = readRDS('./RA_hGas_120h.RDS')
-moca_subset = readRDS('./moca_e9.5_subset.rds')
+RA_hG_120h = readRDS(here('RA_hGas_120h.RDS'))
+moca_subset = readRDS(here('moca_e9.5_subset.rds'))
 res_RA_hG_120h<- pseudobulk(RA_hG_120h,'RA_120h','Human_name')
 res_moca_e95 <- pseudobulk(moca_subset,'MOCA_9.5','Mouse_ID')
 share.genes=Reduce(intersect, list(rownames(res_RA_hG_120h),rownames(res_moca_e95)))
@@ -168,4 +173,3 @@ options(repr.plot.width=30, repr.plot.height=10)
 pheatmap(t(dat), color = colorRampPalette(c("navy", "white", "firebrick3"))(50),fontsize = 18,
         cluster_rows=F, cluster_cols=F)
 ```
-
