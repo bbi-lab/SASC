@@ -32,7 +32,7 @@ Website: https://fredhutch.org/en/research/shared-resources/core-facilities/geno
 **Also offers PacBio single-cell library prep and seq*
 
 **Genomics and Spacial Biology CoLab**   
-Location: Seattle Children’s Research Institute
+Location: Seattle Children’s Research Institute   
 Contact: Rebecca Martin (gsb@seattlechildrens.org)  
 Website: https://www.seattlechildrens.org/research/resources/genomics-spatial-biology-colab/  
 **Also offers PacBio single-cell library prep and seq*  
