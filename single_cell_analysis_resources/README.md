@@ -31,7 +31,7 @@ Contact: Alexander Zevin (genomics@fredhutch.org)
 Website: https://fredhutch.org/en/research/shared-resources/core-facilities/genomics-bioinformatics.html   
 **Also offers PacBio single-cell library prep and seq*
 
-**Genomics and Spacial Biology CoLab**   
+**Genomics and Spatial Biology CoLab**   
 Location: Seattle Children’s Research Institute   
 Contact: Rebecca Martin (gsb@seattlechildrens.org)  
 Website: https://www.seattlechildrens.org/research/resources/genomics-spatial-biology-colab/  
