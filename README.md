@@ -21,7 +21,7 @@ Interested? Reach out to us at sci-help@brotmanbaty.org.
 
 
 ## 🤝 Want to sponsor? 
-We invite industry partners and innovators to support the Seattle Area Single-Cell User Group meetings -- a quarterly workshop series that brings together researchers, analysts, and technologists working on single-cell related projects across the Seatle area. 
+We invite industry partners and innovators to support the Seattle Area Single-Cell User Group meetings -- a quarterly workshop series that brings together researchers, analysts, and technologists working on single-cell related projects across the Seattle area. 
 
 Sponsorship is non-recurring and flexible, as we rotate partners each quarter. Your support helps us foster an open and collaborative space for sharing ideas, workflows, and advances in single-cell genomics.
 
