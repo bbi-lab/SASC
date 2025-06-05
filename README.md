@@ -10,11 +10,11 @@ As more and more researchers use single cell molecular profiling techniques, the
 Stay connected and continue discussions by joining the [Fred Hutch Slack](https://hutchdatascience.org/joinslack) workspace, and adding yourself to the `#single-cell` channel.
 
 
-## Discussion slides and workshop materials 
+## 📝 Discussion slides and workshop materials 
 All meeting slides, workshop scripts, and related materials are available right here in this GitHub repository. Feel free to explore, download, and reuse!
 
 
-## 🙋‍♀️Want to Lead? 
+## 🙋‍♀️ Want to Lead? 
 SASC thrives on collaborative learning! We welcome researchers who are interested in leading a session—whether it's a tutorial, workflow demo, or group discussion. Topics should be technology-agnostic and broadly applicable to single-cell projects.
 
 Interested? Reach out to us at sci-help@brotmanbaty.org.
