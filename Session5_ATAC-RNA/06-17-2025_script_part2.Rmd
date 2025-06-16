@@ -1,0 +1,490 @@
+---
+title: "SASC: Paired multiome, Part 2 (Kevin Lin)"
+date: "June 17, 2025"
+output: 
+  bookdown::html_document2:
+    number_sections: false
+    toc: true
+    toc_float:
+      toc_collapsed: true
+    theme: united
+vignette: >
+  %\VignetteIndexEntry{SASC: Paired multiome, Part 2 (Kevin Lin)}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+  
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+collapse = TRUE,
+comment = "#>"
+)
+set.seed(10)
+```
+
+# Loading packages
+  
+```{r, eval = FALSE}
+library(Seurat)
+library(Signac)
+library(tiltedCCA)
+library(ggplot2)
+library(cowplot)
+library(devtools)
+```
+
+```{r, echo = FALSE}
+library(Seurat)
+library(Signac)
+library(tiltedCCA)
+library(ggplot2)
+library(cowplot)
+library(devtools)
+```
+
+# Loading the multiome dataset
+
+This tutorial roughly follows [https://linnykos.github.io/tiltedCCA/articles/embryo.html](https://linnykos.github.io/tiltedCCA/articles/embryo.html).
+We load a dataset downloaded from [https://www.dropbox.com/s/gh2om9eb5edgi14/10x_trevino_simplified.RData](https://www.dropbox.com/s/gh2om9eb5edgi14/10x_trevino_simplified.RData).
+
+```{r loading}
+load("/Users/kevinlin/Library/CloudStorage/Dropbox/Collaboration-and-People/sumie-katie/tutorial/sasc_2025/10x_trevino_simplified.RData")
+
+seurat_obj
+```
+
+# RNA dimension reduction
+
+We first perform a typical dimension reduction and UMAP on the RNA modality. (SCTransform has already been used to normalize the counts.)
+
+```{r rna1, eval = FALSE}
+set.seed(10)
+Seurat::DefaultAssay(seurat_obj) <- "SCT"
+seurat_obj <- Seurat::ScaleData(seurat_obj)
+seurat_obj <- Seurat::RunPCA(seurat_obj, 
+                             verbose = FALSE)
+seurat_obj <- Seurat::RunUMAP(seurat_obj, 
+                              dims = 1:50, 
+                              reduction.name = "umap.rna", 
+                              reduction.key = "rnaUMAP_")
+```
+
+
+```{r rna2, echo = FALSE}
+set.seed(10)
+Seurat::DefaultAssay(seurat_obj) <- "SCT"
+seurat_obj <- Seurat::ScaleData(seurat_obj)
+seurat_obj <- Seurat::RunPCA(seurat_obj, 
+                             verbose = FALSE)
+seurat_obj <- Seurat::RunUMAP(seurat_obj, 
+                              dims = 1:50, 
+                              reduction.name = "umap.rna", 
+                              reduction.key = "rnaUMAP_")
+```
+
+```{r}
+seurat_obj
+```
+
+
+# ATAC dimension reduction
+
+Now we do this on the ATAC modality. Note that we typically remove the first latent dimension when constructing the UMAP, as done in [https://stuartlab.org/signac/articles/pbmc_vignette#non-linear-dimension-reduction-and-clustering](https://stuartlab.org/signac/articles/pbmc_vignette#non-linear-dimension-reduction-and-clustering).
+
+```{r atac1, eval = FALSE}
+# We exclude the first dimension as this is typically correlated with sequencing depth
+set.seed(10)
+seurat_obj <-  Signac::RunSVD(seurat_obj)  
+seurat_obj <- Seurat::RunUMAP(seurat_obj,
+                              reduction = "lsi", 
+                              dims = 2:50, 
+                              reduction.name = "umap.atac", 
+                              reduction.key = "atacUMAP_")
+
+seurat_obj <- tiltedCCA::rotate_seurat_embeddings(
+  seurat_obj = seurat_obj,
+  source_embedding = "umap.rna",
+  target_embedding = "umap.atac"
+)
+```
+
+```{r atac2, echo = FALSE}
+# We exclude the first dimension as this is typically correlated with sequencing depth
+set.seed(10)
+seurat_obj <-  Signac::RunSVD(seurat_obj)  
+seurat_obj <- Seurat::RunUMAP(seurat_obj,
+                              reduction = "lsi", 
+                              dims = 2:50, 
+                              reduction.name = "umap.atac", 
+                              reduction.key = "atacUMAP_")
+
+seurat_obj <- tiltedCCA::rotate_seurat_embeddings(
+  seurat_obj = seurat_obj,
+  source_embedding = "umap.rna",
+  target_embedding = "umap.atac"
+)
+```
+
+(As a side note, to illustrate that the leading latent dimension in `lsi` is correlated with the sequencing counts, we can make the following plots.)
+
+```{r}
+lsi_mat <- seurat_obj[["lsi"]]@cell.embeddings
+sequencing_depth <- seurat_obj$nCount_ATAC
+cor_vec <- apply(lsi_mat, 2, function(x){stats::cor(x, sequencing_depth)})
+plot(cor_vec, pch = 16, xlab = "LSI latent dimension", ylab = "Correlation w/ ATAC seq. depth")
+```
+
+
+```{r}
+seurat_obj
+```
+
+
+# Plotting 
+
+```{r color}
+col_palette <- c(
+  "Cyc. Prog." = rgb(213, 163, 98, maxColorValue = 255),
+  "GluN2" = rgb(122, 179, 232, maxColorValue = 255),
+  "GluN3"= rgb(174, 198, 235, maxColorValue = 255),
+  "GluN4" = rgb(217, 227, 132, maxColorValue = 255),
+  "GluN5" = rgb(127, 175, 123, maxColorValue = 255),
+  "nIPC/GluN1" = rgb(114, 169, 158, maxColorValue = 255),
+  "RG" = rgb(197, 125, 95, maxColorValue = 255)
+)
+
+```
+
+Now let's visualize both modalities. This gives us a sense of what the "typical" modality looks like (i.e., no integration).
+
+```{r plot-original1, eval = FALSE}
+p1 <- Seurat::DimPlot(seurat_obj, 
+                      reduction = "umap.rna",
+                      group.by = "celltype", 
+                      cols = col_palette, 
+                      label = T, repel = T, label.size = 2.5)
+p1 <- p1 + Seurat::NoLegend()
+p1 <- p1 + ggplot2::ggtitle("RNA") + ggplot2::labs(x = "", y = "")
+p1 <- p1 + ggplot2::theme(legend.text = ggplot2::element_text(size = 5))
+
+p2 <- Seurat::DimPlot(seurat_obj, 
+                      reduction = "umap.atac",
+                      group.by = "celltype", 
+                      cols = col_palette, 
+                      label = T, repel = T, label.size = 2.5)
+p2 <- p2 + Seurat::NoLegend()
+p2 <- p2 + ggplot2::ggtitle("ATAC") + ggplot2::labs(x = "", y = "")
+p2 <- p2 + ggplot2::theme(legend.text = ggplot2::element_text(size = 5))
+
+p_all <- cowplot::plot_grid(p1, p2, ncol = 2)
+p_all
+```
+
+```{r plot-original2, echo = FALSE}
+p1 <- Seurat::DimPlot(seurat_obj, 
+                      reduction = "umap.rna",
+                      group.by = "celltype", 
+                      cols = col_palette, 
+                      label = T, repel = T, label.size = 2.5)
+p1 <- p1 + Seurat::NoLegend()
+p1 <- p1 + ggplot2::ggtitle("RNA") + ggplot2::labs(x = "", y = "")
+p1 <- p1 + ggplot2::theme(legend.text = ggplot2::element_text(size = 5))
+
+p2 <- Seurat::DimPlot(seurat_obj, 
+                      reduction = "umap.atac",
+                      group.by = "celltype", 
+                      cols = col_palette, 
+                      label = T, repel = T, label.size = 2.5)
+p2 <- p2 + Seurat::NoLegend()
+p2 <- p2 + ggplot2::ggtitle("ATAC") + ggplot2::labs(x = "", y = "")
+p2 <- p2 + ggplot2::theme(legend.text = ggplot2::element_text(size = 5))
+
+p_all <- cowplot::plot_grid(p1, p2, ncol = 2)
+p_all
+```
+
+# WNN
+
+We follow the tutorial in [https://satijalab.org/seurat/articles/weighted_nearest_neighbor_analysis](https://satijalab.org/seurat/articles/weighted_nearest_neighbor_analysis). The intent of the Weighted Nearest Neighbor (WNN) method is to create **one** UMAP that combines the variation in either the RNA or ATAC modality (i.e., the "union" of information). This is useful because it gives us a bird's eye view of both modalities in one plot -- cell separation patterns in either RNA or ATAC would show up in the WNN UMAP.
+
+Note that this method is not specific to RNA or ATAC modalities. It simply requies two embeddings for paired modalities (i.e., two modalities measured on the same cells).
+
+See [https://www.cell.com/cell/fulltext/S0092-8674(21)00583-3](Hao et al., Cell, 2021) for more information.
+
+```{r wnn1, eval = FALSE}
+seurat_obj <- Seurat::FindMultiModalNeighbors(seurat_obj, 
+                                              reduction.list = list("pca", "lsi"), 
+                                              dims.list = list(1:50, 2:50))
+seurat_obj <- Seurat::RunUMAP(seurat_obj, 
+                              nn.name = "weighted.nn", 
+                              reduction.name = "wnn.umap", 
+                              reduction.key = "wnnUMAP_")
+```
+
+```{r wnn2, echo = FALSE}
+# Identify multimodal neighbors. These will be stored in the neighbors slot, 
+# and can be accessed using bm[['weighted.nn']]
+# The WNN graph can be accessed at bm[["wknn"]], 
+# and the SNN graph used for clustering at bm[["wsnn"]]
+# Cell-specific modality weights can be accessed at bm$RNA.weight
+seurat_obj <- Seurat::FindMultiModalNeighbors(seurat_obj, 
+                                              reduction.list = list("pca", "lsi"), 
+                                              dims.list = list(1:50, 2:50))
+seurat_obj <- Seurat::RunUMAP(seurat_obj, 
+                              nn.name = "weighted.nn", 
+                              reduction.name = "wnn.umap", 
+                              reduction.key = "wnnUMAP_")
+```
+
+```{r wnn-plot}
+p1 <- Seurat::DimPlot(seurat_obj, 
+              reduction = "umap.rna", 
+              group.by = "celltype", 
+              cols = col_palette, 
+              label = TRUE, 
+              label.size = 2.5, 
+              repel = TRUE) + ggtitle("RNA")
+p2 <- Seurat::DimPlot(seurat_obj, 
+                      reduction = "umap.atac", 
+                      group.by = "celltype", 
+                      cols = col_palette, 
+                      label = TRUE, 
+                      label.size = 2.5, 
+                      repel = TRUE) + ggtitle("ATAC")
+p3 <- Seurat::DimPlot(seurat_obj, 
+                      reduction = "wnn.umap", 
+                      group.by = "celltype", 
+                      cols = col_palette, 
+                      label = TRUE, 
+                      label.size = 2.5,
+                      repel = TRUE) + ggtitle("WNN")
+p1 + p2 + p3 & Seurat::NoLegend() & theme(plot.title = element_text(hjust = 0.5))
+```
+
+```{r}
+seurat_obj
+```
+
+# Tilted-CCA
+
+What if, in contrast, we want to separate which sources of variation are **shared** between the RNA and ATAC modalities, as well as which additional variations in one modalities are "invisible" to the other? This is where we could use Tilted-CCA to aid us.
+
+We follow the tutorial from [https://linnykos.github.io/tiltedCCA/articles/embryo.html](https://linnykos.github.io/tiltedCCA/articles/embryo.html).
+
+See [https://www.pnas.org/doi/10.1073/pnas.2303647120](Lin and Zhang, PNAS, 2024) for more information.
+
+```{r tcca-load}
+# https://linnykos.github.io/tiltedCCA/articles/embryo.html
+
+Seurat::DefaultAssay(seurat_obj) <- "SCT"
+mat_1 <- Matrix::t(seurat_obj[["SCT"]]@data)
+Seurat::DefaultAssay(seurat_obj) <- "ATAC"
+mat_2 <- Matrix::t(seurat_obj[["ATAC"]]@data)
+
+mat_1b <- mat_1
+sd_vec <- sparseMatrixStats::colSds(mat_1b)
+if(any(sd_vec <= 1e-6)){
+  mat_1b <- mat_1b[,-which(sd_vec <= 1e-6)]
+}
+
+mat_2b <- mat_2
+sd_vec <- sparseMatrixStats::colSds(mat_2b)
+if(any(sd_vec <= 1e-6)){
+  mat_2b <- mat_2b[,-which(sd_vec <= 1e-6)]
+}
+```
+
+
+The first step of TCCA might take a while, since this first step computes the low-dimensional embeddings in its own way.
+
+```{r tcca-step1}
+set.seed(10)
+multiSVD_obj <- tiltedCCA::create_multiSVD(mat_1 = mat_1b, mat_2 = mat_2b,
+                                           dims_1 = 1:50, dims_2 = 2:50,
+                                           center_1 = T, center_2 = F,
+                                           normalize_row = T,
+                                           normalize_singular_value = T,
+                                           recenter_1 = F, recenter_2 = T,
+                                           rescale_1 = F, rescale_2 = T,
+                                           scale_1 = T, scale_2 = F,
+                                           verbose = 1)
+```
+
+The following steps are simplified to speed up the calculations for this tutorial.
+
+```{r tcca-othersteps1, eval = FALSE}
+multiSVD_obj <- tiltedCCA::form_metacells(input_obj = multiSVD_obj,
+                                          large_clustering_1 = NULL, 
+                                          large_clustering_2 = NULL, 
+                                          num_metacells = 100,
+                                          verbose = 1)
+
+multiSVD_obj <- tiltedCCA::compute_snns(input_obj = multiSVD_obj,
+                                        latent_k = 20,
+                                        num_neigh = 15,
+                                        bool_cosine = T,
+                                        bool_intersect = F,
+                                        min_deg = 15,
+                                        verbose = 1)
+
+multiSVD_obj2 <- tiltedCCA::tiltedCCA(input_obj = multiSVD_obj,
+                                      discretization_gridsize = 5, # set to be lower to speed up the calculation for sake of the tutorial
+                                      verbose = 1)
+
+multiSVD_obj2 <- tiltedCCA::fine_tuning(input_obj = multiSVD_obj2,
+                                        max_iter = 3, # set to be lower to speed up the calculation for sake of the tutorial
+                                        verbose = 1)
+
+multiSVD_obj2 <- tiltedCCA::tiltedCCA_decomposition(input_obj = multiSVD_obj2,
+                                                    verbose = 1,
+                                                    bool_modality_1_full = T,
+                                                    bool_modality_2_full = F)
+
+```
+
+```{r tcca-othersteps2, echo = FALSE}
+multiSVD_obj <- tiltedCCA::form_metacells(input_obj = multiSVD_obj,
+                                          large_clustering_1 = NULL, 
+                                          large_clustering_2 = NULL, 
+                                          num_metacells = 100,
+                                          verbose = 1)
+
+multiSVD_obj <- tiltedCCA::compute_snns(input_obj = multiSVD_obj,
+                                        latent_k = 20,
+                                        num_neigh = 15,
+                                        bool_cosine = T,
+                                        bool_intersect = F,
+                                        min_deg = 15,
+                                        verbose = 1)
+
+multiSVD_obj2 <- tiltedCCA::tiltedCCA(input_obj = multiSVD_obj,
+                                      discretization_gridsize = 5, # set to be lower to speed up the calculation for sake of the tutorial
+                                      verbose = 1)
+
+multiSVD_obj2 <- tiltedCCA::fine_tuning(input_obj = multiSVD_obj2,
+                                        max_iter = 3, # set to be lower to speed up the calculation for sake of the tutorial
+                                        verbose = 1)
+
+multiSVD_obj2 <- tiltedCCA::tiltedCCA_decomposition(input_obj = multiSVD_obj2,
+                                                    verbose = 1,
+                                                    bool_modality_1_full = T,
+                                                    bool_modality_2_full = F)
+
+```
+
+```{r}
+names(multiSVD_obj2)
+```
+
+
+We can now visualize the common embedding (`common_tcca`, showing the variations in both RNA and ATAC), and the two distinct embeddings (`distinct1_tcca` for the additional unique variation in RNA not in ATAC, and `distinct2_tcca` for the additional unique variation in ATAC not in RNA).
+
+```{r tcca-umap1, eval = FALSE}
+set.seed(10)
+seurat_obj[["common_tcca"]] <- tiltedCCA::create_SeuratDim(input_obj = multiSVD_obj2,
+                                                           what = "common",
+                                                           aligned_umap_assay = "umap.rna",
+                                                           seurat_obj = seurat_obj,
+                                                           seurat_assay = "SCT",
+                                                           verbose = 1)
+set.seed(10)
+seurat_obj[["distinct1_tcca"]] <- tiltedCCA::create_SeuratDim(input_obj = multiSVD_obj2,
+                                                              what = "distinct_1",
+                                                              aligned_umap_assay = "umap.rna",
+                                                              seurat_obj = seurat_obj,
+                                                              seurat_assay = "SCT",
+                                                              verbose = 1)
+set.seed(10)
+seurat_obj[["distinct2_tcca"]] <- tiltedCCA::create_SeuratDim(input_obj = multiSVD_obj2,
+                                                              what = "distinct_2",
+                                                              aligned_umap_assay = "umap.rna",
+                                                              seurat_obj = seurat_obj,
+                                                              seurat_assay = "SCT",
+                                                              verbose = 1)
+
+```
+
+```{r tcca-umap2, echo = FALSE}
+set.seed(10)
+seurat_obj[["common_tcca"]] <- tiltedCCA::create_SeuratDim(input_obj = multiSVD_obj2,
+                                                           what = "common",
+                                                           aligned_umap_assay = "umap.rna",
+                                                           seurat_obj = seurat_obj,
+                                                           seurat_assay = "SCT",
+                                                           verbose = 1)
+set.seed(10)
+seurat_obj[["distinct1_tcca"]] <- tiltedCCA::create_SeuratDim(input_obj = multiSVD_obj2,
+                                                              what = "distinct_1",
+                                                              aligned_umap_assay = "umap.rna",
+                                                              seurat_obj = seurat_obj,
+                                                              seurat_assay = "SCT",
+                                                              verbose = 1)
+set.seed(10)
+seurat_obj[["distinct2_tcca"]] <- tiltedCCA::create_SeuratDim(input_obj = multiSVD_obj2,
+                                                              what = "distinct_2",
+                                                              aligned_umap_assay = "umap.rna",
+                                                              seurat_obj = seurat_obj,
+                                                              seurat_assay = "SCT",
+                                                              verbose = 1)
+
+```
+
+```{r tcca-plotting}
+p1 <- Seurat::DimPlot(seurat_obj, 
+                      reduction = "common_tcca",
+                      group.by = "celltype", 
+                      cols = col_palette, 
+                      label = T, repel = T, label.size = 2.5)
+p1 <- p1 + Seurat::NoLegend()
+p1 <- p1 + ggplot2::ggtitle("Common") + ggplot2::labs(x = "", y = "")
+p1 <- p1 + ggplot2::theme(legend.text = ggplot2::element_text(size = 5))
+
+p2 <- Seurat::DimPlot(seurat_obj, 
+                      reduction = "distinct1_tcca",
+                      group.by = "celltype", 
+                      cols = col_palette, 
+                      label = T, repel = T, label.size = 2.5)
+p2 <- p2 + Seurat::NoLegend()
+p2 <- p2 + ggplot2::ggtitle("RNA Distinct") + ggplot2::labs(x = "", y = "")
+p2 <- p2 + ggplot2::theme(legend.text = ggplot2::element_text(size = 5))
+
+p3 <- Seurat::DimPlot(seurat_obj, 
+                      reduction = "distinct2_tcca",
+                      group.by = "celltype", 
+                      cols = col_palette, 
+                      label = T, repel = T, label.size = 2.5)
+p3 <- p3 + Seurat::NoLegend()
+p3 <- p3 + ggplot2::ggtitle("ATAC Distinct") + ggplot2::labs(x = "", y = "")
+p3 <- p3 + ggplot2::theme(legend.text = ggplot2::element_text(size = 5))
+
+p_all <- cowplot::plot_grid(p1, p2, p3, ncol = 3)
+p_all
+```
+
+Equipped with this, we can visualize the **synchrony score** for each cell. This could help us understand epigenetic priming -- the pre-configuring of a cell’s chromatin so that key developmental genes are kept in a poised, low-level accessible state; this "molecular bookmark" enables rapid and lineage-specific activation (or repression) of those genes when differentiation cues arrive, thereby guiding cells toward their future identities with both speed and fidelity.
+
+This can be computed by comparing each cell's low-dimension vector in the common embedding to the corresponding vectors in distinct embeddings. A high synchrony score means that the two modalities are "aligned" (based on some statistical definition) in both modalities, while a low score means that there is information in one modality not reflected in the other.
+
+```{r}
+synchrony_score <- tiltedCCA::compute_synchrony(input_obj = multiSVD_obj2)
+
+seurat_obj$synchrony <- synchrony_score[Seurat::Cells(seurat_obj),"synchrony_rescaled"]
+
+p1 <- Seurat::FeaturePlot(seurat_obj,
+                    reduction = "common_tcca",
+                    feature = "synchrony",
+                    cols = c("forestgreen", "yellow"))
+p1 <- p1 + ggplot2::ggtitle("Synchrony score") + ggplot2::labs(x = "Common TCCA 1", y = "Common TCCA 2")
+p1
+```
+
+```{r}
+seurat_obj
+```
+
+
+# Sesssion info
+
+```{r session-info}
+devtools::session_info()
+```

@@ -1,0 +1,138 @@
+---
+title: "SASC: Paired multiome, Part 1 (Kevin Lin)"
+date: "June 17, 2025"
+output: 
+  bookdown::html_document2:
+    number_sections: false
+    toc: true
+    toc_float:
+      toc_collapsed: true
+    theme: united
+vignette: >
+  %\VignetteIndexEntry{SASC: Paired multiome, Part 1 (Kevin Lin)}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+  
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+collapse = TRUE,
+comment = "#>"
+)
+set.seed(10)
+```
+
+# SASC Workshop Package/Software Installation 
+
+This script is intended for use to download all packages and software 
+in R required for the second SASC workshop. You will need to run this 
+ccript in R
+
+## Required Software 
+
+Before starting installation, it is best to have the following versions:
+- R version 4.3.2 or higher
+- Bioconductor version 3.18 or higher
+
+## Install packages available on CRAN
+
+```{r, eval = FALSE}
+install.packages("ggplot2")
+install.packages("cowplot")
+install.packages("patchwork")
+install.packages("RSQLite")
+install.packages("devtools")
+```
+
+To check if the installation worked:
+
+```{r}
+library(ggplot2)
+library(cowplot)
+library(patchwork)
+library(RSQLite)
+library(devtools)
+```
+
+
+These next two packages could take a long time.
+
+```{r, eval = FALSE}
+install.packages("Seurat")
+install.packages("Signac")
+```
+
+To check if the installation worked:
+
+```{r}
+library(Seurat)
+library(Signac)
+```
+
+## Install Bioconductor
+
+Note: the Bioconductor version may be dependent on your R version. 
+Change the Bioconductor version if needed. 
+
+```{r, eval = FALSE}
+install.packages("BiocManager")
+```
+
+To check if the installation worked:
+
+```{r}
+library(BiocManager)
+```
+
+## Install packages available on BioConductor
+
+Installing packages from BioConductor could take a long time. 
+Typicall, you'll be prompted if you want to update your R packages.
+If you have time to spare (typically on the order of 1 hour), you could choose to update "all".
+If you're in a hurry (for example, installing during the SASC session), things typically work if you only update the CRAN packages.
+
+```{r, eval = FALSE}
+BiocManager::install(c("EnsDb.Mmusculus.v79",
+                       "BSgenome.Mmusculus.UCSC.mm10",
+                       "JASPAR2020",
+                       "TFBSTools",
+                       "ggseqlogo",
+                       "biovizBase",
+                       "motifmatchr"))
+```
+
+To check if the installation worked:
+
+```{r}
+library(EnsDb.Mmusculus.v79)
+library(BSgenome.Mmusculus.UCSC.mm10)
+library(JASPAR2020)
+library(TFBSTools)
+library(ggseqlogo)
+library(biovizBase)
+library(motifmatchr)
+```
+
+## Packages from GitHub
+
+We'll need one last package. This package is currently available on GitHub (but not CRAN or BioConductor).
+
+```{r, eval = FALSE}
+library("devtools")
+devtools::install_github("linnykos/tiltedCCA")
+```
+
+To check if the installation worked:
+
+```{r}
+library(tiltedCCA)
+```
+
+# Checking package versions
+
+If you want to double-check the package versions which I used successfully for this tutorial:
+
+```{r}
+devtools::session_info()
+```
+

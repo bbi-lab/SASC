@@ -1,0 +1,429 @@
+---
+title: "SASC: Paired multiome, Part 1"
+author: Dr. Kevin Z. Lin (UW Biostatistics)
+date: "June 17, 2025"
+output: 
+  bookdown::html_document2:
+    number_sections: false
+    toc: true
+    toc_float:
+      toc_collapsed: true
+    theme: united
+vignette: >
+  %\VignetteIndexEntry{SASC: Paired multiome, Part 1}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+  
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+collapse = TRUE,
+comment = "#>"
+)
+set.seed(10)
+```
+
+# Loading packages
+
+```{r loading-pkg1, eval = FALSE}
+library(Seurat) # from https://satijalab.org/seurat/articles/install_v5
+library(Signac) # from https://stuartlab.org/signac/articles/install
+library(ggplot2)
+library(patchwork)
+library(RSQLite)
+library(EnsDb.Mmusculus.v79) # from https://bioconductor.org/packages/release/data/annotation/html/EnsDb.Mmusculus.v79.html
+library(BSgenome.Mmusculus.UCSC.mm10) # from https://www.bioconductor.org/packages/release/data/annotation/html/BSgenome.Mmusculus.UCSC.mm10.html
+library(JASPAR2020)
+library(TFBSTools)
+library(ggseqlogo)
+library(devtools)
+library(biovizBase) #BiocManager::install("biovizBase") 
+library(motifmatchr) #BiocManager::install("motifmatchr") 
+```
+
+```{r loading-pkg2, echo = FALSE}
+library(Seurat) # from https://satijalab.org/seurat/articles/install_v5
+library(Signac) # from https://stuartlab.org/signac/articles/install
+library(ggplot2)
+library(patchwork)
+library(RSQLite)
+library(EnsDb.Mmusculus.v79) # from https://bioconductor.org/packages/release/data/annotation/html/EnsDb.Mmusculus.v79.html
+library(BSgenome.Mmusculus.UCSC.mm10) # from https://www.bioconductor.org/packages/release/data/annotation/html/BSgenome.Mmusculus.UCSC.mm10.html
+library(JASPAR2020)
+library(TFBSTools)
+library(ggseqlogo)
+library(devtools)
+```
+
+# Creating the scATAC-seq data
+
+This is tutorial is based on [https://stuartlab.org/signac/articles/mouse_brain_vignette](https://stuartlab.org/signac/articles/mouse_brain_vignette).
+Download the files from:
+
+- [http://cf.10xgenomics.com/samples/cell-atac/1.1.0/atac_v1_adult_brain_fresh_5k/atac_v1_adult_brain_fresh_5k_filtered_peak_bc_matrix.h5](http://cf.10xgenomics.com/samples/cell-atac/1.1.0/atac_v1_adult_brain_fresh_5k/atac_v1_adult_brain_fresh_5k_filtered_peak_bc_matrix.h5)
+- [http://cf.10xgenomics.com/samples/cell-atac/1.1.0/atac_v1_adult_brain_fresh_5k/atac_v1_adult_brain_fresh_5k_fragments.tsv.gz](http://cf.10xgenomics.com/samples/cell-atac/1.1.0/atac_v1_adult_brain_fresh_5k/atac_v1_adult_brain_fresh_5k_fragments.tsv.gz)
+- [http://cf.10xgenomics.com/samples/cell-atac/1.1.0/atac_v1_adult_brain_fresh_5k/atac_v1_adult_brain_fresh_5k_fragments.tsv.gz.tbi](http://cf.10xgenomics.com/samples/cell-atac/1.1.0/atac_v1_adult_brain_fresh_5k/atac_v1_adult_brain_fresh_5k_fragments.tsv.gz.tbi)
+- You'll also need the `atac_v1_adult_brain_fresh_5k_singlecell_kzl-updated.csv` file created for this tutorial.
+
+The following code is to create the Seurat object for snATAC-seq data. Notably, you need to use the `Signac::CreateChromatinAssay()` function, where you need to not only tell the function the count matrix `counts`, but also where the `.tsv.gz` file is. 
+This is because `Signac` has functions that functions that require knowing specifically if there's a cut at any particular base pair (in the reference genome), not simply just how many cuts happen at a peak region.
+(The matrix `counts`, is simply a tally of how many cuts happen within a region, which is not high-resolution enough for some of the `Signac` functions.)
+
+**Note about wording**: We will be using the words "chromatin region" and "peak" interchangeably. 
+
+```{r atac-preprocess1, eval = FALSE}
+setwd("/Users/kevinlin/Library/CloudStorage/Dropbox/Collaboration-and-People/sumie-katie/tutorial/sasc_2025/")
+
+counts <- Seurat::Read10X_h5("atac_v1_adult_brain_fresh_5k_filtered_peak_bc_matrix.h5")
+metadata <- read.csv(
+  file = "atac_v1_adult_brain_fresh_5k_singlecell_kzl-updated.csv",
+  header = TRUE,
+  row.names = 1
+)
+
+seurat_atac <- Signac::CreateChromatinAssay(
+  counts = counts,
+  sep = c(":", "-"),
+  genome = "mm10",
+  fragments = 'atac_v1_adult_brain_fresh_5k_fragments.tsv.gz',
+  min.cells = 1
+)
+
+# If you see this error: "Error: vector memory exhausted (limit reached?)"
+# You can try `Sys.setenv(R_MAX_VSIZE = "100Gb")` beforehand
+
+seurat_obj <- Seurat::CreateSeuratObject(
+  counts = seurat_atac,
+  assay = 'ATAC',
+  meta.data = metadata
+)
+seurat_atac
+```
+
+```{r atac-preprocess2, echo = FALSE}
+setwd("/Users/kevinlin/Library/CloudStorage/Dropbox/Collaboration-and-People/sumie-katie/tutorial/sasc_2025/")
+
+counts <- Seurat::Read10X_h5("atac_v1_adult_brain_fresh_5k_filtered_peak_bc_matrix.h5")
+metadata <- read.csv(
+  file = "atac_v1_adult_brain_fresh_5k_singlecell_kzl-updated.csv",
+  header = TRUE,
+  row.names = 1,
+  stringsAsFactors = TRUE
+)
+
+seurat_atac <- Signac::CreateChromatinAssay(
+  counts = counts,
+  sep = c(":", "-"),
+  genome = "mm10",
+  fragments = 'atac_v1_adult_brain_fresh_5k_fragments.tsv.gz',
+  min.cells = 1
+)
+
+# If you see this error: "Error: vector memory exhausted (limit reached?)"
+# You can try `Sys.setenv(R_MAX_VSIZE = "100Gb")` beforehand
+
+seurat_obj <- Seurat::CreateSeuratObject(
+  counts = seurat_atac,
+  assay = 'ATAC',
+  meta.data = metadata
+)
+seurat_atac
+```
+We can take a look at the first 5 cells and first 5 peaks in `seurat_obj`. We see that the peak names (which come from CellRanger, prior to doing any analysis in R) denote the start and end of the peak region, and the count refers to how many cuts were detected (after CellRanger's own preprocessing) in that region.
+
+```{r}
+SeuratObject::LayerData(seurat_obj,
+                        layer = "counts",
+                        assay = "ATAC")[1:5,1:5]
+```
+
+We now need to do some cleanup on `seurat_obj`. This primarily is to set up the backend so any future bioinformatics analysis knows what the reference genome is, the specific naming convention being used, etc.
+
+```{r annotation1, eval = FALSE}
+# extract gene annotations from EnsDb
+annotations <- Signac::GetGRangesFromEnsDb(ensdb = EnsDb.Mmusculus.v79)
+
+# change to UCSC style since the data was mapped to hg19
+GenomeInfoDb::seqlevels(annotations) <- paste0('chr', GenomeInfoDb::seqlevels(annotations))
+GenomeInfoDb::genome(annotations) <- "mm10"
+
+# add the gene information to the object
+Signac::Annotation(seurat_obj) <- annotations
+```
+
+```{r annotation2, echo = FALSE}
+# extract gene annotations from EnsDb
+annotations <- Signac::GetGRangesFromEnsDb(ensdb = EnsDb.Mmusculus.v79)
+
+# change to UCSC style since the data was mapped to hg19
+GenomeInfoDb::seqlevels(annotations) <- paste0('chr', GenomeInfoDb::seqlevels(annotations))
+GenomeInfoDb::genome(annotations) <- "mm10"
+
+# add the gene information to the object
+Signac::Annotation(seurat_obj) <- annotations
+```
+
+```{r seurat}
+seurat_obj
+```
+
+```{r summary}
+summary(seurat_obj@meta.data)
+```
+
+# Compute quality-control statistics
+
+We now want to compute some quality-control statistics. One common one is `Signac::NucleosomeSignal()`. As you can see in [https://stuartlab.org/signac/reference/nucleosomesignal](https://stuartlab.org/signac/reference/nucleosomesignal) and [https://stuartlab.org/signac/articles/pbmc_vignette#computing-qc-metrics](https://stuartlab.org/signac/articles/pbmc_vignette#computing-qc-metrics), this diagnostic uses the following logic: "The histogram of DNA fragment sizes (determined from the paired-end sequencing reads) should exhibit a strong nucleosome banding pattern corresponding to the length of DNA wrapped around a single nucleosome"
+
+```{r nucleosome}
+seurat_obj <- Signac::NucleosomeSignal(seurat_obj)
+seurat_obj$nucleosome_group <- ifelse(seurat_obj$nucleosome_signal > 4, 'NS > 4', 'NS < 4')
+Signac::FragmentHistogram(seurat_obj, 
+                          group.by = 'nucleosome_group', 
+                          region = 'chr1-1-10000000')
+```
+
+Another is `Signac::TSSEnrichment()`. As you can see in [https://stuartlab.org/signac/reference/tssenrichment](https://stuartlab.org/signac/reference/tssenrichment) and [https://stuartlab.org/signac/articles/pbmc_vignette#computing-qc-metrics](https://stuartlab.org/signac/articles/pbmc_vignette#computing-qc-metrics), this diagnostic uses the following logic: "The ENCODE project has defined an ATAC-seq targeting score based on the ratio of fragments centered at the TSS to fragments in TSS-flanking regions. Poor ATAC-seq experiments typically will have a low TSS enrichment score."
+
+```{r tss}
+# the following line takes a couple minutes to run if you set "fast=FALSE"
+## However, you'll need to set `fast=FALSE` in order to run the Signac::TSSPlot line
+seurat_obj <- Signac::TSSEnrichment(seurat_obj,
+                                    fast = FALSE)
+# from https://stuartlab.org/signac/1.13.0/articles/pbmc_vignette
+seurat_obj$high.tss <- ifelse(seurat_obj$TSS.enrichment > 3, 'High', 'Low')
+Signac::TSSPlot(seurat_obj, group.by = 'high.tss') + Seurat::NoLegend()
+```
+
+Finally, there are "known" regions that consistently show abnormally high, unstructured, or irreproducible signal in sequencing assays. These are the "blacklist" regions, we can also filter out cells that have too high counts in these regions. See more in [https://stuartlab.org/signac/articles/pbmc_vignette#computing-qc-metrics](https://stuartlab.org/signac/articles/pbmc_vignette#computing-qc-metrics).
+
+```{r vln}
+seurat_obj$pct_reads_in_peaks <- seurat_obj$peak_region_fragments / seurat_obj$passed_filters * 100
+seurat_obj$blacklist_ratio <- seurat_obj$blacklist_region_fragments / seurat_obj$peak_region_fragments
+
+all_plots <- Seurat::VlnPlot(seurat_obj,
+                             features = c('pct_reads_in_peaks', 
+                                          'peak_region_fragments',
+                                          'TSS.enrichment',
+                                          'nucleosome_signal'),
+                             ncol = 4) 
+for(i in 1:length(all_plots)){
+  all_plots[[i]] <- all_plots[[i]] + ggplot2::theme(plot.title = element_text(size=10))
+}
+
+all_plots
+
+```
+
+```{r}
+summary(seurat_obj@meta.data)
+```
+
+
+# Quality-control subsetting the cells
+
+We're going to subset a lot more aggressively (i.e., throw out more cells than needed) for the sake of making this tutorial faster.
+
+```{r subset}
+seurat_obj <- subset(seurat_obj,
+                     subset = peak_region_fragments > 15000 &
+                       peak_region_fragments < 80000 &
+                       pct_reads_in_peaks > 70 &
+                       blacklist_ratio < 0.025 &
+                       nucleosome_signal < 4 &
+                       TSS.enrichment > 2
+)
+
+seurat_obj
+head(seurat_obj@meta.data)
+```
+
+# Plotting
+
+Now we want to visualize the remaining cells using a "typical" pipeline. This involves using `Signac::RunTFIDF()` to perform a normalization,
+`Signac::FindTopFeatures()` to do a feature selection, 
+and `Signac::RunSVD()` to perform a dimension reduction.
+(These are mathematically different from the analogous steps in scRNA-seq, which are typically log-normalization, variable gene selection based on the variance-stabilizing transform, and then PCA. However, conceptually, the steps here for scATAC-seq serve very similar purposes, just adapted for much sparser count data in scATAC-seq.)
+
+```{r atac-umap}
+Seurat::DefaultAssay(seurat_obj) <- "ATAC"
+seurat_obj <- Signac::RunTFIDF(seurat_obj)
+seurat_obj <- Signac::FindTopFeatures(seurat_obj, min.cutoff = 'q0')
+seurat_obj <- Signac::RunSVD(seurat_obj)
+
+seurat_obj <- Seurat::RunUMAP(seurat_obj,
+                              reduction = 'lsi',
+                              dims = 2:30
+)
+```
+```{r atac-plot}
+Seurat::DimPlot(seurat_obj, label = TRUE, group.by = "predicted.id") + Seurat::NoLegend()
+```
+
+
+```{r seurat2}
+seurat_obj
+```
+
+
+# Compute gene activity scores
+
+Since it's often difficult to "interpret" chromatin regions (i.e., peaks), it's sometimes convenient to "convert" the scATAC-seq data to be aligned with the genes. `Signac::GeneActivity()` achieves this, where essentially, it looks at the raw `.tsv.gz` file, and then checks for each gene's TSS, how many cuts happen around that TSS. This essentially results in a matrix that has "genes" as features (instead of "peaks"). See more information in [https://stuartlab.org/signac/reference/geneactivity](https://stuartlab.org/signac/reference/geneactivity). Be wary of the default: By default (currently, in Signac version 1.14.0), `extend.upstream = 2000` and 
+`extend.downstream = 0`, which means the cuts are defined as up to 2000 base pairs upstream of the TSS (on the 5' to 3' side, i.e., "before" the TSS), and not looking at any cuts after the TSS (downstream). See Figure 5 in [https://academic.oup.com/bib/article/25/5/bbae382/7745032](Loers et al. (Briefings, 2024)) to see that these numbers could be wildly different from method to method.
+
+```{r gene-activity1, eval = FALSE}
+# compute gene activities
+# This takes a couple minutes
+gene_activities <- Signac::GeneActivity(seurat_obj)
+
+# add the gene activity matrix to the Seurat object as a new assay
+seurat_obj[['RNA']] <- Seurat::CreateAssayObject(counts = gene_activities)
+
+seurat_obj <- Seurat::NormalizeData(
+  object = seurat_obj,
+  assay = 'RNA'
+)
+```
+
+```{r gene-activity2, echo = FALSE}
+# compute gene activities
+# This takes a couple minutes
+gene_activities <- Signac::GeneActivity(seurat_obj)
+
+# add the gene activity matrix to the Seurat object as a new assay
+seurat_obj[['RNA']] <- Seurat::CreateAssayObject(counts = gene_activities)
+
+seurat_obj <- Seurat::NormalizeData(
+  object = seurat_obj,
+  assay = 'RNA'
+)
+```
+
+```{r seurat3}
+Seurat::DefaultAssay(seurat_obj) <- "RNA"
+seurat_obj
+```
+
+We can show the underlying count matrix that we've constructed. We can see that each row (feature) is now a gene. Of course, this isn't really a scRNA-seq data (since this is a "conversion" of scATAC-seq into gene counts). Had this been a 10x multiome dataset, we could compare the GeneActivity scores to the observed scRNA-seq counts gene-by-gene to detect which genes are "primed" (or "become accessible") prior to transcription in which cell types.
+
+```{r countmat}
+count_mat <- SeuratObject::LayerData(seurat_obj,
+                                     layer = "counts",
+                                     assay = "RNA")
+count_mat[1:5,1:5]
+```
+
+# Making coverage plots
+
+Since our data is scATAC-seq, we can plot the coverage track. This is a plot that looks like a mountain range, where for each stratification (typically, each cell type or cell cluster), we see across all the cells in that stratification, the average number of cuts that happened at that base pair region. See [https://stuartlab.org/signac/reference/coverageplot](https://stuartlab.org/signac/reference/coverageplot) for more information. If you dig into the code for this function, you'll see that the coverage track is a "double average" -- first, for each cell, it averages the presence/absence of a cut at any particular base pair with its neighboring base pairs. Then, it averages this averaged cut count across all the cells in that stratification.
+
+```{r ident}
+Seurat::Idents(seurat_obj) <- "predicted.id"
+# show cell types with at least 50 cells
+idents_plot <- names(which(table(Seurat::Idents(seurat_obj)) > 50))
+
+idents_plot
+Seurat::DefaultAssay(seurat_obj) <- "ATAC"
+```
+
+```{r coverage}
+Signac::CoveragePlot(
+  object = seurat_obj,
+  region = c("Neurod6"),
+  idents = idents_plot,
+  extend.upstream = 1000,
+  extend.downstream = 1000,
+  ncol = 1
+)
+```
+
+# Motif analysis using ChromVAR
+
+Finally, we can do a motif analysis, see [https://stuartlab.org/signac/articles/motif_vignette](https://stuartlab.org/signac/articles/motif_vignette). This analysis answers the following question: "Given that there's these peak regions, suppose there's some peak regions that are more accessible in one cell type than another. What are the transcription factors (TFs) that bind to these regions?" Answering this question might give us a clue on the regulatory mechanism on which transcription factors are more critical in one cell type when compared to another.
+
+This analysis essentially needs a couple things: 
+
+- 1) A database of the ATCG "sequence" that each transcription factor typically binds to. This is the "motif", where you might have seen the position-weight matrices being visualized as "sequence logos" before.
+- 2) A set of chromatin regions you're interested in, and its underlying ATCG sequence along the DNA.
+
+The following two code chunks gets these ingredients set up -- first, use the JASPAR2020 package to assemble a set of TFs with their motifs, and put them into `seurat_obj`.
+
+```{r motif}
+# Get a list of motif position frequency matrices from the JASPAR database
+pfm <- TFBSTools::getMatrixSet(
+  x = JASPAR2020,
+  opts = list(collection = "CORE", tax_group = 'vertebrates', all_versions = FALSE)
+)
+
+# add motif information
+# This takes a couple minutes 
+seurat_obj <- Signac::AddMotifs(
+  object = seurat_obj,
+  genome = BSgenome.Mmusculus.UCSC.mm10,
+  pfm = pfm
+)
+
+seurat_obj
+```
+
+```{r da-peak1, eval = FALSE}
+da_peaks <- Seurat::FindMarkers(
+  object = seurat_obj,
+  ident.1 = 'L4',
+  ident.2 = 'L2/3 IT',
+  only.pos = TRUE, # This is an important parameter to set, for our interpretation to come
+  test.use = 'LR',
+  min.pct = 0.3, # changed to 0.2 just to make the calculation faster for this demo
+  latent.vars = 'nCount_ATAC'
+)
+
+head(da_peaks)
+
+# get top differentially accessible peaks
+top_da_peak <- rownames(da_peaks[da_peaks$p_val < 0.005 & da_peaks$pct.1 > 0.2, ])
+length(top_da_peak)
+```
+
+Then, the following code chunk gets the second ingredient set up -- find me the peak regions that occur more commonly in the `L4` cell type, when compared to the `L2/3 IT` cell type (layer 2/3 intratelencephalic (IT) neurons, a type of excitatory neuron).
+
+```{r da-peak2, echo = FALSE}
+da_peaks <- Seurat::FindMarkers(
+  object = seurat_obj,
+  ident.1 = 'L4',
+  ident.2 = 'L2/3 IT',
+  only.pos = TRUE, # This is an important parameter to set, for our interpretation to come
+  test.use = 'LR',
+  min.pct = 0.3, # changed to 0.2 just to make the calculation faster for this demo
+  latent.vars = 'nCount_ATAC'
+)
+
+head(da_peaks)
+
+# get top differentially accessible peaks
+top_da_peak <- rownames(da_peaks[da_peaks$p_val < 0.005 & da_peaks$pct.1 > 0.2, ])
+length(top_da_peak)
+```
+
+Finally, we can do the chromVAR analysis.
+This analysis asks: Given the nucleotide sequence (ATCG) of the chromatin regions of interest, are there certain TFs (based on their motifs) that could potentially bind more to these regions, when compared to all the other regions not being highlighted? (If you dig into the `Signac::FindMotifs()` code, it calls a method called chromVAR which has a dedicated sub-routine to find reasonable "background peaks" that match the peaks of interest based on their region's basepair length, GC content, etc.). The end result is a p-value, one per motif, where a smaller p-value means that motif is more significantly enriched in the peaks of interest, relative to the background set of peaks.
+
+```{r enriched-motif}
+# test enrichment
+enriched_motifs <- Signac::FindMotifs(
+  object = seurat_obj,
+  features = top_da_peak
+)
+
+head(enriched_motifs)
+
+Signac::MotifPlot(
+  object = seurat_obj,
+  motifs = head(rownames(enriched_motifs))
+)
+```
+
+# Sesssion info
+
+```{r session-info}
+devtools::session_info()
+```
