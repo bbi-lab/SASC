@@ -41,7 +41,7 @@ uv venv
 Then install the packages we’ll use:
 
 ```bash
-uv pip install scanpy uv ipykernel palantir igraph leidenalg rpy2 scikit-image
+uv pip install scanpy uv ipykernel palantir igraph leidenalg rpy2 scikit-image anndata2ri
 ```
 
 Register this environment as a Jupyter kernel:
