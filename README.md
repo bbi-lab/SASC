@@ -17,7 +17,7 @@ All meeting slides, workshop scripts, and related materials are available right 
 ## 🙋‍♀️ Want to Lead? 
 SASC thrives on collaborative learning! We welcome researchers who are interested in leading a session—whether it's a tutorial, workflow demo, or group discussion. Topics should be technology-agnostic and broadly applicable to single-cell projects.
 
-Interested? Reach out to us at sci-help@brotmanbaty.org.
+Interested? Reach out to us at scibats@u.washington.edu.
 
 
 ## 🤝 Want to sponsor? 
