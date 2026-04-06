@@ -183,31 +183,3 @@ plot_contrast(ccm, cond_ne_v_e_tbl, q_value_thresh = 0.05)
 ```
 
 
-### Controlling for batch terms
-
-If your data contains multiple experimental batches, Hooke supports batch
-correction using a nuisance model term. You must also specify the batch in the prediction data frame passed to `estimate_abundances()`. 
-In this example, we control for replicate. After controlling for replicate, we see differences in the significant fold
-changes.
-
-```{r, eval = TRUE, warning = FALSE, message = FALSE}
-ccm_rep <- new_cell_count_model(
-    ccs,
-    main_model_formula_str = "~ exposed",
-    nuisance_model_formula_str = "~ Rep"
-)
-
-cond_exp_rep <- estimate_abundances(
-    ccm_rep,
-    newdata = tibble::tibble(exposed = "exposed", Rep = "1")
-)
-cond_not_exp_rep <- estimate_abundances(
-    ccm_rep,
-    newdata = tibble::tibble(exposed = "not exposed", Rep = "1")
-)
-cond_ne_v_e_tbl_rep <- compare_abundances(ccm_rep, cond_not_exp_rep, cond_exp_rep)
-
-plot_contrast(ccm_rep, cond_ne_v_e_tbl_rep, q_value_thresh = 0.05)
-```
-
-
