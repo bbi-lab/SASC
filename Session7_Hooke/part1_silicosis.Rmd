@@ -64,6 +64,8 @@ label, and visualizes the annotated cell states.
 library(monocle3)
 library(hooke)
 library(tidyverse)
+
+set.seed(1)
 cds <- readRDS("silicosis_cds.rds")
 
 # For simplicity, lump together pre and post i.t. silica.
