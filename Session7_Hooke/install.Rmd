@@ -1,0 +1,119 @@
+---
+title: "SASC: Hooke Installation"
+date: "April 8, 2026"
+output: 
+  bookdown::html_document2:
+    number_sections: false
+    toc: true
+    toc_float:
+      toc_collapsed: true
+    theme: united
+vignette: >
+  %\VignetteIndexEntry{SASC: Hooke Installation}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+  
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+set.seed(10)
+```
+
+# SASC Workshop Package/Software Installation
+
+This script is intended to install the R packages required for the Hooke
+session. You will need to run this script in R.
+
+## Required Software
+
+Before starting installation, it is best to have the following:
+
+- R version 3.5.0 or higher
+- A working GitHub package installation workflow in R
+
+Hooke is currently available through GitHub. The package is also in beta, so
+some features may still be under active development.
+
+## Install packages from CRAN
+
+These packages are needed to install the GitHub-hosted dependencies:
+
+```{r, eval = FALSE}
+install.packages("devtools")
+install.packages("remotes")
+install.packages("tidyverse")
+install.packages("splines")
+install.packages("ggh4x")
+```
+
+To check if the installation worked:
+
+```{r, eval = FALSE}
+library(devtools)
+library(remotes)
+library(tidyverse)
+library(splines)
+library(ggh4x)
+```
+
+## Install Monocle3
+
+Hooke builds on top of `monocle3`, which also needs to be installed from
+GitHub.
+
+```{r, eval = FALSE}
+devtools::install_github("cole-trapnell-lab/monocle3", ref = "develop")
+```
+
+To check if the installation worked:
+
+```{r, eval = FALSE}
+library(monocle3)
+```
+
+## Install PLNmodels
+
+Hooke also depends on `PLNmodels`, which is installed from GitHub.
+
+```{r, eval = FALSE}
+remotes::install_github("pln-team/PLNmodels")
+```
+
+To check if the installation worked:
+
+```{r, eval = FALSE}
+library(PLNmodels)
+```
+
+## Install Hooke
+
+Install the main `hooke` package from GitHub:
+
+```{r, eval = FALSE}
+devtools::install_github("cole-trapnell-lab/hooke")
+```
+
+To check if the installation worked:
+
+```{r, eval = FALSE}
+library(hooke)
+```
+
+## Optional: install the develop branch
+
+If you specifically need the development branch, you can install it with:
+
+```{r, eval = FALSE}
+devtools::install_github("cole-trapnell-lab/hooke", ref = "develop")
+```
+
+## Checking package versions
+
+If you want to double-check the package versions used in your session:
+
+```{r, eval = FALSE}
+devtools::session_info()
+```

@@ -1,0 +1,213 @@
+---
+title: "SASC: Hooke Part 1, Silicosis"
+date: "April 8, 2026"
+output:
+  bookdown::html_document2:
+    number_sections: false
+    toc: true
+    toc_float:
+      toc_collapsed: true
+    theme: united
+vignette: >
+  %\VignetteIndexEntry{SASC: Hooke Part 1, Silicosis}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE, warning = FALSE, message = FALSE}
+knitr::opts_chunk$set(
+    collapse = TRUE,
+    comment = "#>"
+)
+set.seed(10)
+```
+
+
+# Differential abundance
+
+Hooke can identify differentially abundant cell types for a given contrast.
+The underlying PLN model mimics the standard `R::stats` GLM-like interface.
+This allows users to fit a multivariate Poisson lognormal model after
+correcting for effects of offsets and covariates. This framework allows users
+to perform multivariate statistical regression to describe how perturbations
+alter the relative abundances of each cell state. For example, you could model
+the effects of genotype while controlling for experimental batch.
+
+## Analysis of differentially abundant cell types in silicosis with Hooke
+
+These data were published in [Hasegawa, Franks, et al.
+_bioRxiv_](https://www.biorxiv.org/content/10.1101/2023.02.17.528996v1).
+The authors performed a longitudinal transcriptomic analysis using
+scRNA-sequencing of lungs from pre- and post-silica challenged mice.
+
+The data includes 12 whole lung samples across pre- and post-intratracheal
+silica. Thirty-five unique cell states were identified using highly and
+specifically expressed marker genes. For simplicity, samples are grouped into two levels: exposed and not exposed. The goal is to identify which cell types
+are differentially abundant after silica exposure.
+
+Download the data: [Silicosis data (.RDS)](https://depts.washington.edu/trapnell-lab/software/hooke/silicosis_cds.rds)
+
+### Cell metadata breakdown
+
+Important columns in this data:
+
+* `ID` - individual sample ID. 
+* `Timepoint` - timepoint at which the lung was sampled. 
+* `Rep` - biological replicate
+* `fine_annotation` - The finest cell type annotation level.
+* `broad_annotation` - A broader level of cell type annotation than `cell_type_sub`, but still capturing all uniquely identified cell types.
+
+The next chunk loads the silicosis dataset, creates a simplified exposure
+label, and visualizes the annotated cell states.
+
+```{r, eval = TRUE, warning = FALSE, message = FALSE}
+library(monocle3)
+library(hooke)
+library(tidyverse)
+cds <- readRDS("silicosis_cds.rds")
+
+# For simplicity, lump together pre and post i.t. silica.
+colData(cds)$exposed <- ifelse(colData(cds)$Timepoint == 0, "not exposed", "exposed")
+colData(cds)$Rep <- as.factor(colData(cds)$Rep)
+
+plot_cells(cds, color_cells_by = "fine_annotation", label_groups_by_cluster = FALSE)
+```
+
+
+### Making a cell count set object
+
+The first step in Hooke is to create a `cell_count_set` object. This requires
+three inputs:
+
+- `cds`: a monocle3 `cell_data_set` object
+- `sample_group`: a column in `colData(cds)` that specifies how cells are grouped into samples
+- `cell_group`: a column in `colData(cds)` that specifies how cells are grouped into cell types or states
+
+```{r, eval = TRUE, warning = FALSE, message = FALSE}
+ccs <- new_cell_count_set(
+    cds,
+    sample_group = "ID",
+    cell_group = "fine_annotation"
+)
+```
+
+The resulting `ccs` object stores cell counts for each cell group within each
+sample and serves as the main input for downstream Hooke modeling.
+
+### Fitting a cell count model
+
+The next step is to fit a `cell_count_model` given a model formula. This
+function uses standard R formula notation.
+
+A cell count model requires the following inputs:
+
+- `ccs`: a Hooke `cell_count_set` object
+- `main_model_formula_str`: a character string specifying the model of cell abundances across samples, where terms refer to columns in `colData(ccs)`
+- `nuisance_model_formula_str`: a character string specifying nuisance effects across samples
+- `vhat_method`: method used to estimate the variance-covariance matrix of the model coefficients.
+- `num_bootstraps`: number of bootstraps to perform if `vhat_method` is "bootstrap"
+
+In this example, the comparison of interest is silica-exposed mouse lungs
+versus unexposed lungs.
+
+```{r, eval = TRUE, warning = FALSE, message = FALSE}
+ccm <- new_cell_count_model(
+    ccs,
+    main_model_formula_str = "~ exposed",
+    vhat_method = "bootstrap",
+    num_bootstraps = 10
+)
+```
+
+### Estimating abundances
+
+Next, predict abundance values for a contrast of interest using
+`estimate_abundances()`.
+These are model-based estimated abundances for each cell group under each
+condition, not the raw observed cell counts from the dataset.
+
+- `ccm`: a Hooke `cell_count_model` object
+- `newdata`: a tibble of variables used for the prediction
+- `min_log_abund`: numeric minimum log abundance value
+
+```{r, eval = TRUE, warning = FALSE, message = FALSE}
+cond_exp <- estimate_abundances(ccm, tibble::tibble(exposed = "exposed"))
+cond_not_exp <- estimate_abundances(ccm, tibble::tibble(exposed = "not exposed"))
+
+cond_not_exp %>% head()
+```
+
+
+### Comparing abundances
+
+We can then compare two estimated abundance states from a Hooke model with
+`compare_abundances()`. In this case, we compare exposed versus not exposed.
+This step estimates differential abundance between the two predicted
+conditions.
+
+- `ccm`: a Hooke `cell_count_model` object
+- `cond_x`: a cell type abundance estimate from `estimate_abundances()`
+- `cond_y`: a cell type abundance estimate from `estimate_abundances()`
+
+```{r, eval = TRUE, warning = FALSE, message = FALSE}
+cond_ne_v_e_tbl <- compare_abundances(ccm, cond_not_exp, cond_exp)
+
+cond_ne_v_e_tbl %>%
+    dplyr::select(
+        cell_group,
+        exposed_x,
+        exposed_y,
+        delta_log_abund,
+        delta_log_abund_se,
+        delta_q_value
+    ) %>%
+    head()
+```
+
+
+### Plotting differential abundance changes on a UMAP
+
+We can visualize these fold changes estimated in `compare_abundances()` on a UMAP using
+`plot_contrast()`. Significant fold changes can be filtered with
+`q_value_thresh`.
+In this plot, we can identify cell groups that are enriched or depleted in exposed
+lungs relative to unexposed lungs.
+
+- `ccm`: a Hooke `cell_count_model` object
+- `cond_b_vs_a_tbl`: a data frame returned by `compare_abundances()`
+- `log_abundance_thresh`: numeric threshold used to select cell groups by abundance
+- `q_value_thresh`: remove contrasts whose q-value exceeds this threshold
+
+```{r, eval = TRUE, warning = FALSE, message = FALSE}
+plot_contrast(ccm, cond_ne_v_e_tbl, q_value_thresh = 0.05)
+```
+
+
+### Controlling for batch terms
+
+If your data contains multiple experimental batches, Hooke supports batch
+correction using a nuisance model term. You must also specify the batch in the prediction data frame passed to `estimate_abundances()`. 
+In this example, we control for replicate. After controlling for replicate, we see differences in the significant fold
+changes.
+
+```{r, eval = TRUE, warning = FALSE, message = FALSE}
+ccm_rep <- new_cell_count_model(
+    ccs,
+    main_model_formula_str = "~ exposed",
+    nuisance_model_formula_str = "~ Rep"
+)
+
+cond_exp_rep <- estimate_abundances(
+    ccm_rep,
+    newdata = tibble::tibble(exposed = "exposed", Rep = "1")
+)
+cond_not_exp_rep <- estimate_abundances(
+    ccm_rep,
+    newdata = tibble::tibble(exposed = "not exposed", Rep = "1")
+)
+cond_ne_v_e_tbl_rep <- compare_abundances(ccm_rep, cond_not_exp_rep, cond_exp_rep)
+
+plot_contrast(ccm_rep, cond_ne_v_e_tbl_rep, q_value_thresh = 0.05)
+```
+
+
